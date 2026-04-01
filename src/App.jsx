@@ -35,7 +35,7 @@ const SAMPLE_ARTICLES = [
     source: "reuters",
     topic: "Demographics",
     date: "2026-03-28",
-    url: "#",
+    url: null,
     summary:
       "Reuters Graphics visualizes three decades of global migration data, revealing unexpected corridors between South America and Southeast Asia.",
     dataset: {
@@ -50,7 +50,7 @@ const SAMPLE_ARTICLES = [
     source: "nyt",
     topic: "Climate",
     date: "2026-03-26",
-    url: "#",
+    url: null,
     summary:
       "The Upshot combines satellite thermal data with hospital admission records to quantify the health burden of extreme heat across the United States.",
     dataset: {
@@ -66,7 +66,7 @@ const SAMPLE_ARTICLES = [
     source: "washpost",
     topic: "Economics",
     date: "2026-03-25",
-    url: "#",
+    url: null,
     summary:
       "An interactive treemap breaks down the 2026 federal budget, letting readers explore discretionary vs. mandatory spending at every level.",
     dataset: {
@@ -80,7 +80,7 @@ const SAMPLE_ARTICLES = [
     source: "caixin",
     topic: "Technology",
     date: "2026-03-24",
-    url: "#",
+    url: null,
     summary:
       "Caixin's data team maps the global semiconductor supply chain, identifying critical chokepoints and geopolitical risk factors across 14 countries.",
     dataset: {
@@ -94,7 +94,7 @@ const SAMPLE_ARTICLES = [
     source: "marshall",
     topic: "Crime & Justice",
     date: "2026-03-23",
-    url: "#",
+    url: null,
     summary:
       "An investigation using IoT sensor data from 250+ correctional facilities reveals systemic failures in climate control during summer months.",
     dataset: {
@@ -108,7 +108,7 @@ const SAMPLE_ARTICLES = [
     source: "ft",
     topic: "Education",
     date: "2026-03-22",
-    url: "#",
+    url: null,
     summary:
       "FT's visual team examines whether increased education spending actually improves student outcomes, using OECD PISA data across 80 countries.",
     dataset: {
@@ -122,7 +122,7 @@ const SAMPLE_ARTICLES = [
     source: "initium",
     topic: "Demographics",
     date: "2026-03-21",
-    url: "#",
+    url: null,
     summary:
       "Initium's data team traces a decade of demographic shifts in Hong Kong through census data, immigration records, and birth/death registries.",
     dataset: {
@@ -136,7 +136,7 @@ const SAMPLE_ARTICLES = [
     source: "owid",
     topic: "Health",
     date: "2026-03-20",
-    url: "#",
+    url: null,
     summary:
       "Our World in Data updates its life expectancy tracker showing which countries have recovered to pre-pandemic levels — and which haven't.",
     dataset: {
@@ -150,7 +150,7 @@ const SAMPLE_ARTICLES = [
     source: "bloomberg",
     topic: "Politics",
     date: "2026-03-19",
-    url: "#",
+    url: null,
     summary:
       "Bloomberg Graphics tracks the 400% increase in AI-related lobbying expenditures since 2023, mapping connections between firms and legislators.",
     dataset: {
@@ -164,7 +164,7 @@ const SAMPLE_ARTICLES = [
     source: "scmp",
     topic: "Economics",
     date: "2026-03-18",
-    url: "#",
+    url: null,
     summary:
       "SCMP Infographics charts the sharp decline in venture capital flowing to Asian startups, sector by sector, from 2021 peak to present.",
     dataset: {
@@ -178,7 +178,7 @@ const SAMPLE_ARTICLES = [
     source: "gijn",
     topic: "Technology",
     date: "2026-03-17",
-    url: "#",
+    url: null,
     summary:
       "A methodological guide to cross-border data investigations featuring case studies from Pandora Papers, FinCEN Files, and Pegasus Project.",
     dataset: {
@@ -192,7 +192,7 @@ const SAMPLE_ARTICLES = [
     source: "nbc",
     topic: "Sports",
     date: "2026-03-15",
-    url: "#",
+    url: null,
     summary:
       "Using geotagged social media data and merchandise sales, NBC maps how sports team loyalties have shifted across state lines over the past decade.",
     dataset: {
@@ -757,6 +757,10 @@ function getSourceEmoji(id) {
   return SOURCES.find((s) => s.id === id)?.emoji || "📄";
 }
 
+function isValidUrl(url) {
+  return typeof url === "string" && url.trim() !== "" && url !== "#";
+}
+
 export default function App() {
   const [tab, setTab] = useState("articles");
   const [topic, setTopic] = useState("All");
@@ -915,7 +919,7 @@ export default function App() {
                       <span className="topic-tag">{a.topic}</span>
                     </div>
                     <p>{a.summary}</p>
-                    {a.url && (
+                    {isValidUrl(a.url) && (
                       <a className="featured-link" href={a.url} target="_blank" rel="noreferrer">
                         Read original article
                       </a>
@@ -945,7 +949,7 @@ export default function App() {
                     <span className="source-tag">{getSourceEmoji(a.source)} {getSourceName(a.source)}</span>
                     <span className="topic-tag">{a.topic}</span>
                     <p>{a.summary}</p>
-                    {a.url && (
+                    {isValidUrl(a.url) && (
                       <a className="article-link" href={a.url} target="_blank" rel="noreferrer">
                         Read original article
                       </a>
