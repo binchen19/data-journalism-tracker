@@ -439,6 +439,26 @@ const css = `
     margin-bottom: 8px;
   }
   .featured-card p { font-size: 14px; color: #555; line-height: 1.6; font-weight: 300; }
+  .featured-link,
+  .article-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    color: var(--blue);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .featured-link:hover,
+  .article-link:hover {
+    text-decoration: underline;
+  }
+  .featured-link::after,
+  .article-link::after {
+    content: '↗';
+    font-size: 0.95em;
+  }
 
   /* ─── Article list ─── */
   .article-list { padding: 8px 0 40px; }
@@ -802,7 +822,7 @@ export default function App() {
           </h1>
           <div className="masthead-sub">
             A curated feed of data-driven stories, datasets &amp; methods — for
-            students, journalists &amp; curious minds · Built by <a href="https://binchen19.github.io/" target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: "2px" }}>Bin Chen</a>
+            students, journalists &amp; curious minds.
           </div>
         </header>
 
@@ -895,6 +915,11 @@ export default function App() {
                       <span className="topic-tag">{a.topic}</span>
                     </div>
                     <p>{a.summary}</p>
+                    {a.url && (
+                      <a className="featured-link" href={a.url} target="_blank" rel="noreferrer">
+                        Read original article
+                      </a>
+                    )}
                     {a.dataset && (
                       <div className="article-dataset" style={{ marginTop: 12 }}>
                         <span className="ds-icon">📦</span>
@@ -920,6 +945,11 @@ export default function App() {
                     <span className="source-tag">{getSourceEmoji(a.source)} {getSourceName(a.source)}</span>
                     <span className="topic-tag">{a.topic}</span>
                     <p>{a.summary}</p>
+                    {a.url && (
+                      <a className="article-link" href={a.url} target="_blank" rel="noreferrer">
+                        Read original article
+                      </a>
+                    )}
                     {a.dataset && (
                       <div className="article-dataset">
                         <span className="ds-icon">📦</span>
