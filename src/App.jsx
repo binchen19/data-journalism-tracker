@@ -91,16 +91,9 @@ const css = `
   .search-input::placeholder { color: var(--warm-gray); opacity: 0.6; }
   .search-input:focus { border-color: var(--ink); }
 
-  /* ─── Source dropdown ─── */
-  .source-dropdown { position: relative; }
-  .source-dropdown-btn { padding: 5px 14px; border-radius: 100px; border: 1px solid var(--rule); background: transparent; font-size: 12.5px; font-family: 'IBM Plex Sans', sans-serif; color: var(--warm-gray); cursor: pointer; transition: all 0.2s; }
-  .source-dropdown-btn:hover { border-color: var(--ink); color: var(--ink); }
-  .source-dropdown-btn.has-filter { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-  .source-menu { position: absolute; top: calc(100% + 6px); left: 0; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 0; min-width: 260px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); z-index: 100; max-height: 340px; overflow-y: auto; }
-  .source-option { display: flex; align-items: center; gap: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer; transition: background 0.15s; border: none; background: none; width: 100%; text-align: left; font-family: 'IBM Plex Sans', sans-serif; color: var(--ink); }
-  .source-option:hover { background: var(--cream); }
-  .source-check { width: 16px; height: 16px; border: 1.5px solid var(--rule); border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; transition: all 0.15s; }
-  .source-check.checked { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  /* ─── Source pills ─── */
+  .source-pill { font-size: 11.5px; padding: 4px 10px; }
+  .source-pill-emoji { font-size: 12px; margin-right: 1px; }
 
   /* ─── Featured ─── */
   .featured-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 32px 0; border-bottom: 1px solid var(--rule); }
@@ -241,8 +234,6 @@ export default function App() {
   const [topic, setTopic] = useState("All");
   const [search, setSearch] = useState("");
   const [selectedSources, setSelectedSources] = useState(new Set());
-  const [showSourceMenu, setShowSourceMenu] = useState(false);
-  const [dateRange, setDateRange] = useState("all");
   const [suggestForm, setSuggestForm] = useState({ name: "", url: "", reason: "" });
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -299,30 +290,14 @@ export default function App() {
     fetchFeeds();
   }, [fetchFeeds]);
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (!e.target.closest(".source-dropdown")) setShowSourceMenu(false);
-    };
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
-  }, []);
-
   const filteredArticles = useMemo(() => {
-    const now = new Date();
     return articles.filter((a) => {
       if (topic !== "All" && a.topic !== "All" && a.topic !== topic) return false;
       if (selectedSources.size > 0 && !selectedSources.has(a.source)) return false;
       if (search && !a.title.toLowerCase().includes(search.toLowerCase()) && !(a.summary || "").toLowerCase().includes(search.toLowerCase())) return false;
-      if (dateRange !== "all") {
-        const articleDate = new Date(a.date);
-        const diffDays = (now - articleDate) / (1000 * 60 * 60 * 24);
-        if (dateRange === "7d" && diffDays > 7) return false;
-        if (dateRange === "30d" && diffDays > 30) return false;
-        if (dateRange === "90d" && diffDays > 90) return false;
-      }
       return true;
     });
-  }, [articles, topic, selectedSources, search, dateRange]);
+  }, [articles, topic, selectedSources, search]);
 
   const toggleSource = (id) => {
     setSelectedSources((prev) => {
@@ -372,49 +347,35 @@ export default function App() {
               {TOPICS.map((t) => (
                 <button key={t} className={`filter-pill ${topic === t ? "active" : ""}`} onClick={() => setTopic(t)}>{t}</button>
               ))}
-              <div className="source-dropdown">
-                <button
-                  className={`source-dropdown-btn ${selectedSources.size > 0 ? "has-filter" : ""}`}
-                  onClick={(e) => { e.stopPropagation(); setShowSourceMenu(!showSourceMenu); }}
-                >
-                  {selectedSources.size > 0 ? `${selectedSources.size} source${selectedSources.size > 1 ? "s" : ""}` : "All Sources ▾"}
-                </button>
-                {showSourceMenu && (
-                  <div className="source-menu">
-                    {SOURCES.map((s) => (
-                      <button key={s.id} className="source-option" onClick={() => toggleSource(s.id)}>
-                        <span className={`source-check ${selectedSources.has(s.id) ? "checked" : ""}`}>{selectedSources.has(s.id) ? "✓" : ""}</span>
-                        <span>{s.emoji}</span>
-                        <span>{s.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
               <input className="search-input" type="text" placeholder="Search articles…" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
 
-            <div className="filter-bar" style={{ borderBottom: "1px solid var(--rule)", paddingTop: 12, paddingBottom: 12 }}>
-              <span className="filter-label">Date</span>
-              {[
-                { key: "all", label: "All Time" },
-                { key: "7d", label: "Past 7 Days" },
-                { key: "30d", label: "Past 30 Days" },
-                { key: "90d", label: "Past 90 Days" },
-              ].map((d) => (
-                <button key={d.key} className={`filter-pill ${dateRange === d.key ? "active" : ""}`} onClick={() => setDateRange(d.key)}>{d.label}</button>
+            <div className="filter-bar" style={{ paddingTop: 12, paddingBottom: 12 }}>
+              <span className="filter-label">Source</span>
+              <button
+                className={`filter-pill ${selectedSources.size === 0 ? "active" : ""}`}
+                onClick={() => setSelectedSources(new Set())}
+              >All</button>
+              {SOURCES.map((s) => (
+                <button
+                  key={s.id}
+                  className={`filter-pill source-pill ${selectedSources.has(s.id) ? "active" : ""}`}
+                  onClick={() => toggleSource(s.id)}
+                >
+                  <span className="source-pill-emoji">{s.emoji}</span> {s.name}
+                </button>
               ))}
-              <button className="filter-pill" onClick={fetchFeeds} style={{ marginLeft: "auto" }}>
-                ↻ Refresh
-              </button>
             </div>
 
             <div className="feed-status">
               <span className={`feed-dot ${loading ? "loading" : ""}`} />
               {loading
                 ? `Fetching feeds… ${fetchedCount}/${totalFeeds} sources loaded`
-                : `${articles.length} articles from ${totalFeeds} RSS feeds · Click Refresh to update`
+                : `${articles.length} articles from ${totalFeeds} RSS feeds`
               }
+              {!loading && (
+                <button className="filter-pill" onClick={fetchFeeds} style={{ marginLeft: 8, padding: "2px 10px", fontSize: 11 }}>↻ Refresh</button>
+              )}
             </div>
 
             {/* Loading skeleton */}
