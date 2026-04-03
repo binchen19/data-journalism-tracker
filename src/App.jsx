@@ -2,16 +2,16 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 
 const SOURCES = [
   { id: "nyt", name: "NYT The Upshot", emoji: "📰", region: "US", url: "https://www.nytimes.com/section/upshot", rss: "https://rss.nytimes.com/services/xml/rss/nyt/Upshot.xml" },
-  { id: "reuters", name: "Reuters Graphics", emoji: "🌐", region: "Global", url: "https://www.reuters.com/graphics/", rss: "https://www.reuters.com/rssFeed/news" },
+  { id: "reuters", name: "Reuters Graphics", emoji: "🌐", region: "Global", url: "https://www.reuters.com/graphics/", rss: null },
   { id: "bloomberg", name: "Bloomberg Graphics", emoji: "📊", region: "US", url: "https://www.bloomberg.com/graphics/", rss: null },
   { id: "ft", name: "FT Visual & Data Journalism", emoji: "🟧", region: "UK", url: "https://www.ft.com/visual-and-data-journalism", rss: null },
-  { id: "washpost", name: "Washington Post", emoji: "🏛️", region: "US", url: "https://www.washingtonpost.com/", rss: "https://feeds.washingtonpost.com/rss/national" },
+  { id: "washpost", name: "Washington Post", emoji: "🏛️", region: "US", url: "https://www.washingtonpost.com/", rss: null },
   { id: "owid", name: "Our World in Data", emoji: "🌍", region: "Global", url: "https://ourworldindata.org", rss: "https://ourworldindata.org/atom.xml" },
   { id: "marshall", name: "The Marshall Project", emoji: "⚖️", region: "US", url: "https://www.themarshallproject.org/", rss: "https://www.themarshallproject.org/rss/all" },
-  { id: "scmp", name: "SCMP Infographics", emoji: "🔴", region: "Asia", url: "https://www.scmp.com/infographic/", rss: "https://www.scmp.com/rss/91/feed" },
+  { id: "scmp", name: "SCMP Infographics", emoji: "🔴", region: "Asia", url: "https://www.scmp.com/infographic/", rss: null },
   { id: "caixin", name: "Caixin 財新·數字說", emoji: "🟡", region: "Asia", url: "https://datanews.caixin.com/", rss: null },
   { id: "initium", name: "Initium 端傳媒·數洞", emoji: "🟣", region: "Asia", url: "https://theinitium.com/column/data", rss: null },
-  { id: "nbc", name: "NBC News Data Graphics", emoji: "🔵", region: "US", url: "https://www.nbcnews.com/datagraphics", rss: "https://feeds.nbcnews.com/nbcnews/public/news" },
+  { id: "nbc", name: "NBC News Data Graphics", emoji: "🔵", region: "US", url: "https://www.nbcnews.com/datagraphics", rss: null },
   { id: "gijn", name: "GIJN", emoji: "🔎", region: "Global", url: "https://gijn.org/?s=data+journalism", rss: "https://gijn.org/feed/" },
 ];
 
