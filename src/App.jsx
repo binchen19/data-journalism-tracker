@@ -412,7 +412,7 @@ export default function App() {
         {/* ─── Masthead ─── */}
         <header className="masthead">
           <div className="masthead-date">{today}</div>
-          <h1>The Data <span className="accent">Journalism</span> Tracker</h1>
+          <h1>The <span className="accent">Data</span> Journalism Tracker</h1>
           <div className="masthead-sub">
             A curated feed of data-driven stories &amp; datasets — for students, journalists &amp; curious minds.
           </div>
