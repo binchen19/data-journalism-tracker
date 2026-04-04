@@ -2,74 +2,22 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 
 /*
  * ─── SOURCES ───
- * Only 6 focused data journalism outlets.
- * type: "rss" → fetch via rss2json API
- * type: "scrape" → fetch HTML via CORS proxy and parse links
+ * type: "rss"    → auto-fetched via rss2json API
+ * type: "browse" → displayed as "browse directly" cards, no fetching
  */
 const SOURCES = [
-  {
-    id: "nyt",
-    name: "NYT The Upshot",
-    emoji: "📰",
-    region: "US",
-    url: "https://www.nytimes.com/section/upshot",
-    type: "rss",
-    feed: "https://rss.nytimes.com/services/xml/rss/nyt/Upshot.xml",
-  },
-  {
-    id: "owid",
-    name: "Our World in Data",
-    emoji: "🌍",
-    region: "Global",
-    url: "https://ourworldindata.org",
-    type: "rss",
-    feed: "https://ourworldindata.org/atom.xml",
-  },
-  {
-    id: "reuters",
-    name: "Reuters Data",
-    emoji: "🌐",
-    region: "Global",
-    url: "https://www.reuters.com/data/",
-    type: "scrape",
-    feed: "https://www.reuters.com/data/",
-  },
-  {
-    id: "ft",
-    name: "FT Visual & Data Journalism",
-    emoji: "🟧",
-    region: "UK",
-    url: "https://www.ft.com/visual-and-data-journalism",
-    type: "scrape",
-    feed: "https://www.ft.com/visual-and-data-journalism",
-  },
-  {
-    id: "caixin",
-    name: "Caixin 財新·數字說",
-    emoji: "🟡",
-    region: "Asia",
-    url: "https://datanews.caixin.com/",
-    type: "scrape",
-    feed: "https://datanews.caixin.com/",
-  },
-  {
-    id: "nbc",
-    name: "NBC Data Points",
-    emoji: "🔵",
-    region: "US",
-    url: "https://www.nbcnews.com/datagraphics",
-    type: "scrape",
-    feed: "https://www.nbcnews.com/datagraphics",
-  },
+  { id: "nyt", name: "NYT The Upshot", emoji: "📰", region: "US", url: "https://www.nytimes.com/section/upshot", type: "rss", feed: "https://rss.nytimes.com/services/xml/rss/nyt/Upshot.xml", description: "Data-driven analysis of politics, policy, and everyday life from The New York Times." },
+  { id: "owid", name: "Our World in Data", emoji: "🌍", region: "Global", url: "https://ourworldindata.org", type: "rss", feed: "https://ourworldindata.org/atom.xml", description: "Research and interactive visualizations on global issues — poverty, health, climate, and more." },
+  { id: "reuters", name: "Reuters Data", emoji: "🌐", region: "Global", url: "https://www.reuters.com/data/", type: "browse", description: "Reuters' data-driven investigations and interactive graphics on global affairs." },
+  { id: "ft", name: "FT Visual & Data Journalism", emoji: "🟧", region: "UK", url: "https://www.ft.com/visual-and-data-journalism", type: "browse", description: "The Financial Times' visual storytelling team — charts, maps, and data-driven features." },
+  { id: "caixin", name: "Caixin 財新·數字說", emoji: "🟡", region: "Asia", url: "https://datanews.caixin.com/", type: "browse", description: "Caixin's data journalism team covering China's economy, society, and global trends." },
+  { id: "nbc", name: "NBC Data Points", emoji: "🔵", region: "US", url: "https://www.nbcnews.com/datagraphics", type: "browse", description: "NBC News' data and graphics team — visualizations and analysis on U.S. politics, economy, and society." },
 ];
 
-const TOPICS = [
-  "All", "Politics", "Climate", "Health", "Economics",
-  "Crime & Justice", "Technology", "Demographics", "Sports", "Education",
-];
+const RSS_SOURCES = SOURCES.filter(s => s.type === "rss");
+const BROWSE_SOURCES = SOURCES.filter(s => s.type === "browse");
 
 const RSS2JSON = "https://api.rss2json.com/v1/api.json?rss_url=";
-const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
 function stripHtml(html) {
   if (!html) return "";
@@ -84,7 +32,6 @@ function truncate(str, max = 200) {
   return clean.length > max ? clean.slice(0, max).trim() + "…" : clean;
 }
 
-/* ─── RSS fetcher ─── */
 async function fetchRSS(source) {
   const res = await fetch(`${RSS2JSON}${encodeURIComponent(source.feed)}`);
   const data = await res.json();
@@ -97,70 +44,6 @@ async function fetchRSS(source) {
     url: item.link || null,
     summary: truncate(item.description || item.content, 220),
   }));
-}
-
-/* ─── Scraper: parse article links from HTML ─── */
-async function fetchScrape(source) {
-  const res = await fetch(`${CORS_PROXY}${encodeURIComponent(source.feed)}`);
-  const html = await res.text();
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
-  const articles = [];
-  const seen = new Set();
-
-  // Generic strategy: find all <a> tags with meaningful hrefs
-  const links = doc.querySelectorAll("a[href]");
-
-  for (const link of links) {
-    if (articles.length >= 15) break;
-
-    const href = link.getAttribute("href") || "";
-    const text = (link.textContent || "").trim();
-
-    // Skip navigation, short text, anchors, javascript
-    if (!text || text.length < 15) continue;
-    if (href.startsWith("#") || href.startsWith("javascript")) continue;
-    if (href.includes("/login") || href.includes("/subscribe") || href.includes("/signup")) continue;
-
-    // Build full URL
-    let fullUrl = href;
-    if (href.startsWith("/")) {
-      try {
-        const base = new URL(source.url);
-        fullUrl = `${base.origin}${href}`;
-      } catch { continue; }
-    }
-    if (!fullUrl.startsWith("http")) continue;
-
-    // Source-specific filters
-    let isRelevant = false;
-
-    if (source.id === "reuters") {
-      isRelevant = href.includes("/data/") || href.includes("/graphics/") || href.includes("/investigates/");
-    } else if (source.id === "ft") {
-      isRelevant = href.includes("/content/") || (href.includes("ft.com/") && !href.includes("/visual-and-data-journalism") && text.length > 20);
-    } else if (source.id === "caixin") {
-      isRelevant = href.includes(".caixin.com/") && (href.match(/\/\d{4}-\d{2}-\d{2}\//) || href.match(/\/\d+\.html/));
-    } else if (source.id === "nbc") {
-      isRelevant = href.includes("nbcnews.com/") && (href.includes("/data-") || href.includes("/datagraphics/") || href.includes("/news/") || text.length > 25);
-    }
-
-    if (!isRelevant) continue;
-    if (seen.has(fullUrl) || seen.has(text)) continue;
-    seen.add(fullUrl);
-    seen.add(text);
-
-    articles.push({
-      id: `${source.id}-${articles.length}-${Date.now()}`,
-      title: text.replace(/\s+/g, " ").trim(),
-      source: source.id,
-      date: new Date().toISOString().split("T")[0],
-      url: fullUrl,
-      summary: "",
-    });
-  }
-
-  return articles;
 }
 
 /* ─── Styles ─── */
@@ -187,14 +70,12 @@ const css = `
   body { font-family: 'IBM Plex Sans', sans-serif; background: var(--paper); color: var(--ink); line-height: 1.6; -webkit-font-smoothing: antialiased; }
   .app { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
 
-  /* ─── Masthead ─── */
   .masthead { text-align: center; padding: 48px 0 24px; border-bottom: 3px double var(--ink); }
   .masthead-date { font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--warm-gray); margin-bottom: 12px; }
   .masthead h1 { font-family: 'DM Serif Display', serif; font-size: clamp(32px, 6vw, 56px); font-weight: 400; line-height: 1.1; letter-spacing: -0.5px; }
   .masthead h1 .accent { color: var(--accent); }
   .masthead-sub { font-size: 14px; color: var(--warm-gray); margin-top: 10px; font-weight: 300; letter-spacing: 0.3px; }
 
-  /* ─── Nav ─── */
   .nav-bar { display: flex; gap: 0; border-bottom: 1px solid var(--rule); overflow-x: auto; scrollbar-width: none; }
   .nav-bar::-webkit-scrollbar { display: none; }
   .nav-tab { padding: 14px 20px; font-size: 13px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; color: var(--warm-gray); cursor: pointer; border: none; background: none; white-space: nowrap; position: relative; transition: color 0.2s; font-family: 'IBM Plex Sans', sans-serif; }
@@ -202,7 +83,6 @@ const css = `
   .nav-tab.active { color: var(--ink); }
   .nav-tab.active::after { content: ''; position: absolute; bottom: -1px; left: 16px; right: 16px; height: 2px; background: var(--accent); }
 
-  /* ─── Filters ─── */
   .filter-bar { display: flex; gap: 8px; padding: 16px 0; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--rule); }
   .filter-label { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--warm-gray); margin-right: 4px; }
   .filter-pill { padding: 5px 14px; border-radius: 100px; border: 1px solid var(--rule); background: transparent; font-size: 12.5px; font-family: 'IBM Plex Sans', sans-serif; color: var(--warm-gray); cursor: pointer; transition: all 0.2s; }
@@ -212,9 +92,22 @@ const css = `
   .search-input::placeholder { color: var(--warm-gray); opacity: 0.6; }
   .search-input:focus { border-color: var(--ink); }
 
-  /* ─── Source pills ─── */
   .source-pill { font-size: 11.5px; padding: 4px 10px; }
   .source-pill-emoji { font-size: 12px; margin-right: 1px; }
+
+  /* ─── Browse cards ─── */
+  .browse-section { padding: 28px 0; border-bottom: 1px solid var(--rule); }
+  .browse-section-title { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--warm-gray); margin-bottom: 14px; }
+  .browse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+  .browse-card { display: block; padding: 16px 18px; border: 1px solid var(--rule); border-radius: 6px; text-decoration: none; color: var(--ink); transition: all 0.25s; }
+  .browse-card:hover { border-color: var(--ink); background: var(--cream); transform: translateY(-1px); box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+  .browse-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .browse-card-emoji { font-size: 18px; }
+  .browse-card-name { font-size: 14px; font-weight: 500; }
+  .browse-card-region { font-size: 10px; color: var(--warm-gray); text-transform: uppercase; letter-spacing: 1px; margin-left: auto; }
+  .browse-card p { font-size: 12.5px; color: #777; line-height: 1.5; font-weight: 300; }
+  .browse-card-cta { display: inline-block; margin-top: 8px; font-size: 11.5px; color: var(--blue); font-weight: 500; }
+  .browse-card-cta::after { content: ' ↗'; }
 
   /* ─── Article list ─── */
   .article-list { padding: 8px 0 40px; }
@@ -242,20 +135,19 @@ const css = `
   .s-region { font-size: 11px; color: var(--warm-gray); text-transform: uppercase; letter-spacing: 1px; }
   .s-method { font-size: 10px; font-weight: 500; letter-spacing: 0.5px; }
   .s-method.rss { color: var(--green); }
-  .s-method.scrape { color: var(--blue); }
-  .s-status { width: 8px; height: 8px; background: var(--green); border-radius: 50%; opacity: 0.7; }
+  .s-method.browse { color: var(--blue); }
+  .s-status { width: 8px; height: 8px; border-radius: 50%; opacity: 0.7; }
+  .s-status.rss { background: var(--green); }
+  .s-status.browse { background: var(--blue); }
 
-  /* ─── Feed status ─── */
   .feed-status { display: flex; align-items: center; gap: 8px; padding: 16px 0 8px; font-size: 12px; color: var(--warm-gray); }
   .feed-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
   .feed-dot.loading { background: var(--accent); }
   @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
 
-  /* ─── Empty ─── */
   .empty-state { text-align: center; padding: 60px 20px; color: var(--warm-gray); }
   .empty-state .empty-icon { font-size: 40px; margin-bottom: 12px; }
 
-  /* ─── Footer ─── */
   .footer { border-top: 3px double var(--ink); padding: 24px 0; text-align: center; margin-top: 20px; }
   .footer p { font-size: 12px; color: var(--warm-gray); line-height: 1.8; }
 
@@ -268,7 +160,6 @@ const css = `
   .stagger-3 { animation-delay: 0.15s; }
   .stagger-4 { animation-delay: 0.2s; }
 
-  /* ─── Loading skeleton ─── */
   .skeleton-row { display: grid; grid-template-columns: 80px 1fr; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--rule); }
   .skeleton-bar { background: linear-gradient(90deg, var(--cream) 25%, var(--rule) 50%, var(--cream) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
   .skeleton-date { width: 60px; height: 14px; }
@@ -277,7 +168,6 @@ const css = `
   .skeleton-text.short { width: 60%; }
   @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-  /* ─── Suggest ─── */
   .suggest-section { margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--rule); }
   .suggest-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; margin-bottom: 6px; }
   .suggest-desc { font-size: 13.5px; color: var(--warm-gray); font-weight: 300; margin-bottom: 16px; }
@@ -293,7 +183,6 @@ const css = `
   .suggest-btn:disabled { opacity: 0.35; cursor: not-allowed; }
   .suggest-note { font-size: 11.5px; color: var(--warm-gray); margin-top: 8px; font-weight: 300; }
 
-  /* ─── About ─── */
   .about-section { padding: 36px 0 48px; max-width: 680px; }
   .about-heading { font-family: 'DM Serif Display', serif; font-size: 28px; font-weight: 400; margin-bottom: 24px; }
   .about-content p { font-size: 15px; line-height: 1.75; color: #444; margin-bottom: 16px; font-weight: 300; }
@@ -309,10 +198,6 @@ const css = `
   .about-link-card span { font-size: 12.5px; color: var(--warm-gray); font-weight: 300; }
   .inline-link { background: none; border: none; color: var(--ink); text-decoration: underline; text-underline-offset: 2px; font-family: 'IBM Plex Sans', sans-serif; font-size: 15px; font-weight: 400; cursor: pointer; padding: 0; }
   .inline-link:hover { color: var(--accent); }
-
-  /* ─── Error banner ─── */
-  .error-list { padding: 8px 0; }
-  .error-item { font-size: 11.5px; color: var(--accent); padding: 2px 0; }
 `;
 
 function formatDate(dateStr) {
@@ -326,7 +211,7 @@ function getSource(id) {
 }
 
 function SkeletonLoader() {
-  return Array.from({ length: 6 }).map((_, i) => (
+  return Array.from({ length: 5 }).map((_, i) => (
     <div key={i} className="skeleton-row">
       <div><div className="skeleton-bar skeleton-date" /></div>
       <div>
@@ -340,45 +225,28 @@ function SkeletonLoader() {
 
 export default function App() {
   const [tab, setTab] = useState("articles");
-  const [topic, setTopic] = useState("All");
   const [search, setSearch] = useState("");
-  const [selectedSources, setSelectedSources] = useState(new Set());
+  const [selectedSource, setSelectedSource] = useState("all");
   const [suggestForm, setSuggestForm] = useState({ name: "", url: "", reason: "" });
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [fetchedCount, setFetchedCount] = useState(0);
-  const [errors, setErrors] = useState([]);
 
   const fetchFeeds = useCallback(async () => {
     setLoading(true);
-    setFetchedCount(0);
-    setErrors([]);
     const allArticles = [];
-    const allErrors = [];
-    let count = 0;
 
-    const promises = SOURCES.map(async (source) => {
+    const promises = RSS_SOURCES.map(async (source) => {
       try {
-        let items;
-        if (source.type === "rss") {
-          items = await fetchRSS(source);
-        } else {
-          items = await fetchScrape(source);
-        }
+        const items = await fetchRSS(source);
         allArticles.push(...items);
       } catch (err) {
         console.warn(`Failed: ${source.name}`, err.message);
-        allErrors.push(`${source.name}: ${err.message}`);
-      } finally {
-        count++;
-        setFetchedCount(count);
       }
     });
 
     await Promise.allSettled(promises);
     allArticles.sort((a, b) => new Date(b.date) - new Date(a.date));
     setArticles(allArticles);
-    setErrors(allErrors);
     setLoading(false);
   }, []);
 
@@ -386,20 +254,11 @@ export default function App() {
 
   const filteredArticles = useMemo(() => {
     return articles.filter((a) => {
-      if (selectedSources.size > 0 && !selectedSources.has(a.source)) return false;
+      if (selectedSource !== "all" && a.source !== selectedSource) return false;
       if (search && !a.title.toLowerCase().includes(search.toLowerCase()) && !(a.summary || "").toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [articles, selectedSources, search]);
-
-  const toggleSource = (id) => {
-    setSelectedSources((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  }, [articles, selectedSource, search]);
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
@@ -409,7 +268,6 @@ export default function App() {
     <>
       <style>{css}</style>
       <div className="app">
-        {/* ─── Masthead ─── */}
         <header className="masthead">
           <div className="masthead-date">{today}</div>
           <h1>The <span className="accent">Data</span> Journalism Tracker</h1>
@@ -418,7 +276,6 @@ export default function App() {
           </div>
         </header>
 
-        {/* ─── Nav ─── */}
         <nav className="nav-bar">
           {[
             { key: "articles", label: "Articles" },
@@ -435,18 +292,12 @@ export default function App() {
         {/* ─── Articles ─── */}
         {tab === "articles" && (
           <>
+            {/* Source filter */}
             <div className="filter-bar" style={{ paddingTop: 14, paddingBottom: 14 }}>
-              <span className="filter-label">Source</span>
-              <button
-                className={`filter-pill ${selectedSources.size === 0 ? "active" : ""}`}
-                onClick={() => setSelectedSources(new Set())}
-              >All</button>
-              {SOURCES.map((s) => (
-                <button
-                  key={s.id}
-                  className={`filter-pill source-pill ${selectedSources.has(s.id) ? "active" : ""}`}
-                  onClick={() => toggleSource(s.id)}
-                >
+              <span className="filter-label">Feed</span>
+              <button className={`filter-pill ${selectedSource === "all" ? "active" : ""}`} onClick={() => setSelectedSource("all")}>All</button>
+              {RSS_SOURCES.map((s) => (
+                <button key={s.id} className={`filter-pill source-pill ${selectedSource === s.id ? "active" : ""}`} onClick={() => setSelectedSource(s.id)}>
                   <span className="source-pill-emoji">{s.emoji}</span> {s.name}
                 </button>
               ))}
@@ -456,19 +307,13 @@ export default function App() {
             <div className="feed-status">
               <span className={`feed-dot ${loading ? "loading" : ""}`} />
               {loading
-                ? `Fetching sources… ${fetchedCount}/${SOURCES.length}`
-                : `${articles.length} articles from ${SOURCES.length} sources`
+                ? "Fetching RSS feeds…"
+                : `${articles.length} articles from ${RSS_SOURCES.length} RSS feeds`
               }
               {!loading && (
                 <button className="filter-pill" onClick={fetchFeeds} style={{ marginLeft: 8, padding: "2px 10px", fontSize: 11 }}>↻ Refresh</button>
               )}
             </div>
-
-            {errors.length > 0 && !loading && (
-              <div className="error-list">
-                {errors.map((e, i) => <div key={i} className="error-item">⚠ {e}</div>)}
-              </div>
-            )}
 
             {loading && <SkeletonLoader />}
 
@@ -502,6 +347,24 @@ export default function App() {
                 )}
               </div>
             )}
+
+            {/* Browse directly section */}
+            <div className="browse-section">
+              <div className="browse-section-title">Browse Directly</div>
+              <div className="browse-grid">
+                {BROWSE_SOURCES.map((s, i) => (
+                  <a key={s.id} href={s.url} target="_blank" rel="noreferrer" className={`browse-card fade-in stagger-${(i % 4) + 1}`}>
+                    <div className="browse-card-header">
+                      <span className="browse-card-emoji">{s.emoji}</span>
+                      <span className="browse-card-name">{s.name}</span>
+                      <span className="browse-card-region">{s.region}</span>
+                    </div>
+                    <p>{s.description}</p>
+                    <span className="browse-card-cta">Visit site</span>
+                  </a>
+                ))}
+              </div>
+            </div>
           </>
         )}
 
@@ -510,7 +373,7 @@ export default function App() {
           <div className="sources-section">
             <h2>Tracked Sources</h2>
             <p style={{ fontSize: 14, color: "#8c8578", fontWeight: 300, marginBottom: 20 }}>
-              {SOURCES.length} data journalism outlets tracked
+              {SOURCES.length} data journalism outlets — {RSS_SOURCES.length} via RSS, {BROWSE_SOURCES.length} browse directly
             </p>
             <div className="sources-grid">
               {SOURCES.map((s, i) => (
@@ -519,9 +382,9 @@ export default function App() {
                   <div className="s-info">
                     <div className="s-name">{s.name}</div>
                     <div className="s-region">{s.region}</div>
-                    <div className={`s-method ${s.type}`}>{s.type === "rss" ? "RSS feed" : "Page scraping"}</div>
+                    <div className={`s-method ${s.type}`}>{s.type === "rss" ? "RSS feed" : "Browse directly"}</div>
                   </div>
-                  <span className="s-status" />
+                  <span className={`s-status ${s.type}`} />
                 </a>
               ))}
             </div>
@@ -575,9 +438,9 @@ export default function App() {
 
               <h3 className="about-subheading">What You'll Find Here</h3>
               <p>
-                A live feed of data journalism pieces from {SOURCES.length} leading outlets across the US, UK,
-                Asia, and global networks. Articles are fetched via RSS feeds where available, and via page scraping for outlets
-                that don't offer data-journalism-specific feeds.
+                Articles from {RSS_SOURCES.length} sources are fetched live via RSS feeds. Another {BROWSE_SOURCES.length} leading
+                outlets are featured as "browse directly" links — these don't offer data-journalism-specific RSS feeds,
+                so we link you straight to their data sections instead of pulling in irrelevant general news.
               </p>
 
               <h3 className="about-subheading">Links &amp; Resources</h3>
