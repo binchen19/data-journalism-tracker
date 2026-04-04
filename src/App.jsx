@@ -1,18 +1,66 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 
+/*
+ * ─── SOURCES ───
+ * Only 6 focused data journalism outlets.
+ * type: "rss" → fetch via rss2json API
+ * type: "scrape" → fetch HTML via CORS proxy and parse links
+ */
 const SOURCES = [
-  { id: "nyt", name: "NYT The Upshot", emoji: "📰", region: "US", url: "https://www.nytimes.com/section/upshot", rss: "https://rss.nytimes.com/services/xml/rss/nyt/Upshot.xml" },
-  { id: "reuters", name: "Reuters Graphics", emoji: "🌐", region: "Global", url: "https://www.reuters.com/graphics/", rss: null },
-  { id: "bloomberg", name: "Bloomberg Graphics", emoji: "📊", region: "US", url: "https://www.bloomberg.com/graphics/", rss: null },
-  { id: "ft", name: "FT Visual & Data Journalism", emoji: "🟧", region: "UK", url: "https://www.ft.com/visual-and-data-journalism", rss: null },
-  { id: "washpost", name: "Washington Post", emoji: "🏛️", region: "US", url: "https://www.washingtonpost.com/", rss: null },
-  { id: "owid", name: "Our World in Data", emoji: "🌍", region: "Global", url: "https://ourworldindata.org", rss: "https://ourworldindata.org/atom.xml" },
-  { id: "marshall", name: "The Marshall Project", emoji: "⚖️", region: "US", url: "https://www.themarshallproject.org/", rss: "https://www.themarshallproject.org/rss/all" },
-  { id: "scmp", name: "SCMP Infographics", emoji: "🔴", region: "Asia", url: "https://www.scmp.com/infographic/", rss: null },
-  { id: "caixin", name: "Caixin 財新·數字說", emoji: "🟡", region: "Asia", url: "https://datanews.caixin.com/", rss: null },
-  { id: "initium", name: "Initium 端傳媒·數洞", emoji: "🟣", region: "Asia", url: "https://theinitium.com/column/data", rss: null },
-  { id: "nbc", name: "NBC News Data Graphics", emoji: "🔵", region: "US", url: "https://www.nbcnews.com/datagraphics", rss: null },
-  { id: "gijn", name: "GIJN", emoji: "🔎", region: "Global", url: "https://gijn.org/?s=data+journalism", rss: "https://gijn.org/feed/" },
+  {
+    id: "nyt",
+    name: "NYT The Upshot",
+    emoji: "📰",
+    region: "US",
+    url: "https://www.nytimes.com/section/upshot",
+    type: "rss",
+    feed: "https://rss.nytimes.com/services/xml/rss/nyt/Upshot.xml",
+  },
+  {
+    id: "owid",
+    name: "Our World in Data",
+    emoji: "🌍",
+    region: "Global",
+    url: "https://ourworldindata.org",
+    type: "rss",
+    feed: "https://ourworldindata.org/atom.xml",
+  },
+  {
+    id: "reuters",
+    name: "Reuters Data",
+    emoji: "🌐",
+    region: "Global",
+    url: "https://www.reuters.com/data/",
+    type: "scrape",
+    feed: "https://www.reuters.com/data/",
+  },
+  {
+    id: "ft",
+    name: "FT Visual & Data Journalism",
+    emoji: "🟧",
+    region: "UK",
+    url: "https://www.ft.com/visual-and-data-journalism",
+    type: "scrape",
+    feed: "https://www.ft.com/visual-and-data-journalism",
+  },
+  {
+    id: "caixin",
+    name: "Caixin 財新·數字說",
+    emoji: "🟡",
+    region: "Asia",
+    url: "https://datanews.caixin.com/",
+    type: "scrape",
+    feed: "https://datanews.caixin.com/",
+  },
+  {
+    id: "nbc",
+    name: "NBC Data Points",
+    emoji: "🔵",
+    region: "US",
+    url: "https://www.nbcnews.com/datagraphics",
+    type: "scrape",
+    feed: "https://www.nbcnews.com/datagraphics",
+  },
 ];
 
 const TOPICS = [
@@ -21,6 +69,7 @@ const TOPICS = [
 ];
 
 const RSS2JSON = "https://api.rss2json.com/v1/api.json?rss_url=";
+const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
 function stripHtml(html) {
   if (!html) return "";
@@ -33,6 +82,85 @@ function truncate(str, max = 200) {
   if (!str) return "";
   const clean = stripHtml(str).trim();
   return clean.length > max ? clean.slice(0, max).trim() + "…" : clean;
+}
+
+/* ─── RSS fetcher ─── */
+async function fetchRSS(source) {
+  const res = await fetch(`${RSS2JSON}${encodeURIComponent(source.feed)}`);
+  const data = await res.json();
+  if (data.status !== "ok" || !data.items) return [];
+  return data.items.slice(0, 15).map((item, idx) => ({
+    id: `${source.id}-${idx}-${Date.now()}`,
+    title: stripHtml(item.title),
+    source: source.id,
+    date: item.pubDate ? item.pubDate.split(" ")[0] : new Date().toISOString().split("T")[0],
+    url: item.link || null,
+    summary: truncate(item.description || item.content, 220),
+  }));
+}
+
+/* ─── Scraper: parse article links from HTML ─── */
+async function fetchScrape(source) {
+  const res = await fetch(`${CORS_PROXY}${encodeURIComponent(source.feed)}`);
+  const html = await res.text();
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  const articles = [];
+  const seen = new Set();
+
+  // Generic strategy: find all <a> tags with meaningful hrefs
+  const links = doc.querySelectorAll("a[href]");
+
+  for (const link of links) {
+    if (articles.length >= 15) break;
+
+    const href = link.getAttribute("href") || "";
+    const text = (link.textContent || "").trim();
+
+    // Skip navigation, short text, anchors, javascript
+    if (!text || text.length < 15) continue;
+    if (href.startsWith("#") || href.startsWith("javascript")) continue;
+    if (href.includes("/login") || href.includes("/subscribe") || href.includes("/signup")) continue;
+
+    // Build full URL
+    let fullUrl = href;
+    if (href.startsWith("/")) {
+      try {
+        const base = new URL(source.url);
+        fullUrl = `${base.origin}${href}`;
+      } catch { continue; }
+    }
+    if (!fullUrl.startsWith("http")) continue;
+
+    // Source-specific filters
+    let isRelevant = false;
+
+    if (source.id === "reuters") {
+      isRelevant = href.includes("/data/") || href.includes("/graphics/") || href.includes("/investigates/");
+    } else if (source.id === "ft") {
+      isRelevant = href.includes("/content/") || (href.includes("ft.com/") && !href.includes("/visual-and-data-journalism") && text.length > 20);
+    } else if (source.id === "caixin") {
+      isRelevant = href.includes(".caixin.com/") && (href.match(/\/\d{4}-\d{2}-\d{2}\//) || href.match(/\/\d+\.html/));
+    } else if (source.id === "nbc") {
+      isRelevant = href.includes("nbcnews.com/") && (href.includes("/data-") || href.includes("/datagraphics/") || href.includes("/news/") || text.length > 25);
+    }
+
+    if (!isRelevant) continue;
+    if (seen.has(fullUrl) || seen.has(text)) continue;
+    seen.add(fullUrl);
+    seen.add(text);
+
+    articles.push({
+      id: `${source.id}-${articles.length}-${Date.now()}`,
+      title: text.replace(/\s+/g, " ").trim(),
+      source: source.id,
+      date: new Date().toISOString().split("T")[0],
+      url: fullUrl,
+      summary: "",
+    });
+  }
+
+  return articles;
 }
 
 /* ─── Styles ─── */
@@ -56,14 +184,7 @@ const css = `
     --tag-bg: #eae6de;
   }
 
-  body {
-    font-family: 'IBM Plex Sans', sans-serif;
-    background: var(--paper);
-    color: var(--ink);
-    line-height: 1.6;
-    -webkit-font-smoothing: antialiased;
-  }
-
+  body { font-family: 'IBM Plex Sans', sans-serif; background: var(--paper); color: var(--ink); line-height: 1.6; -webkit-font-smoothing: antialiased; }
   .app { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
 
   /* ─── Masthead ─── */
@@ -82,7 +203,7 @@ const css = `
   .nav-tab.active::after { content: ''; position: absolute; bottom: -1px; left: 16px; right: 16px; height: 2px; background: var(--accent); }
 
   /* ─── Filters ─── */
-  .filter-bar { display: flex; gap: 8px; padding: 20px 0; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--rule); }
+  .filter-bar { display: flex; gap: 8px; padding: 16px 0; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--rule); }
   .filter-label { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--warm-gray); margin-right: 4px; }
   .filter-pill { padding: 5px 14px; border-radius: 100px; border: 1px solid var(--rule); background: transparent; font-size: 12.5px; font-family: 'IBM Plex Sans', sans-serif; color: var(--warm-gray); cursor: pointer; transition: all 0.2s; }
   .filter-pill:hover { border-color: var(--ink); color: var(--ink); }
@@ -95,17 +216,6 @@ const css = `
   .source-pill { font-size: 11.5px; padding: 4px 10px; }
   .source-pill-emoji { font-size: 12px; margin-right: 1px; }
 
-  /* ─── Featured ─── */
-  .featured-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 32px 0; border-bottom: 1px solid var(--rule); }
-  @media (max-width: 700px) { .featured-row { grid-template-columns: 1fr; } }
-  .featured-card { padding: 24px; background: linear-gradient(135deg, var(--cream) 0%, var(--paper) 100%); border: 1px solid var(--rule); border-radius: 4px; transition: box-shadow 0.3s, transform 0.3s; }
-  .featured-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.06); transform: translateY(-2px); }
-  .featured-badge { font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
-  .featured-card h3 { font-family: 'DM Serif Display', serif; font-size: 22px; font-weight: 400; line-height: 1.3; margin-bottom: 8px; }
-  .featured-card h3 a { color: inherit; text-decoration: none; }
-  .featured-card h3 a:hover { color: var(--accent); }
-  .featured-card p { font-size: 14px; color: #555; line-height: 1.6; font-weight: 300; }
-
   /* ─── Article list ─── */
   .article-list { padding: 8px 0 40px; }
   .article-item { display: grid; grid-template-columns: 80px 1fr; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--rule); align-items: start; }
@@ -115,13 +225,7 @@ const css = `
   .article-main h3 a { color: inherit; text-decoration: none; }
   .article-main h3 a:hover { color: var(--accent); }
   .source-tag { display: inline-block; font-size: 11px; font-weight: 500; color: var(--warm-gray); margin-right: 8px; }
-  .topic-tag { display: inline-block; font-size: 10.5px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; background: var(--tag-bg); padding: 2px 8px; border-radius: 3px; color: var(--warm-gray); }
   .article-main p { font-size: 13.5px; color: #666; margin-top: 6px; line-height: 1.55; font-weight: 300; }
-  .article-dataset { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; color: var(--blue); font-weight: 500; }
-  .ds-icon { width: 16px; height: 16px; background: var(--blue-soft); border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; }
-  .article-dataset a { color: var(--blue); text-decoration: none; }
-  .article-dataset a:hover { text-decoration: underline; }
-  .ds-desc { color: #888 !important; font-weight: 300 !important; font-style: italic; }
   .read-link { display: inline-block; margin-top: 8px; font-size: 12.5px; color: var(--blue); text-decoration: none; font-weight: 500; }
   .read-link:hover { text-decoration: underline; }
   .read-link::after { content: ' ↗'; font-size: 0.9em; }
@@ -136,10 +240,10 @@ const css = `
   .s-info { flex: 1; }
   .s-name { font-size: 14px; font-weight: 500; }
   .s-region { font-size: 11px; color: var(--warm-gray); text-transform: uppercase; letter-spacing: 1px; }
-  .s-rss { font-size: 10px; color: var(--green); font-weight: 500; letter-spacing: 0.5px; }
-  .s-norss { font-size: 10px; color: var(--warm-gray); font-weight: 400; letter-spacing: 0.5px; }
+  .s-method { font-size: 10px; font-weight: 500; letter-spacing: 0.5px; }
+  .s-method.rss { color: var(--green); }
+  .s-method.scrape { color: var(--blue); }
   .s-status { width: 8px; height: 8px; background: var(--green); border-radius: 50%; opacity: 0.7; }
-  .s-status.inactive { background: var(--warm-gray); opacity: 0.3; }
 
   /* ─── Feed status ─── */
   .feed-status { display: flex; align-items: center; gap: 8px; padding: 16px 0 8px; font-size: 12px; color: var(--warm-gray); }
@@ -205,10 +309,15 @@ const css = `
   .about-link-card span { font-size: 12.5px; color: var(--warm-gray); font-weight: 300; }
   .inline-link { background: none; border: none; color: var(--ink); text-decoration: underline; text-underline-offset: 2px; font-family: 'IBM Plex Sans', sans-serif; font-size: 15px; font-weight: 400; cursor: pointer; padding: 0; }
   .inline-link:hover { color: var(--accent); }
+
+  /* ─── Error banner ─── */
+  .error-list { padding: 8px 0; }
+  .error-item { font-size: 11.5px; color: var(--accent); padding: 2px 0; }
 `;
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
+  if (isNaN(d)) return "";
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
@@ -217,8 +326,8 @@ function getSource(id) {
 }
 
 function SkeletonLoader() {
-  return Array.from({ length: 5 }).map((_, i) => (
-    <div key={i} className="skeleton-row" style={{ animationDelay: `${i * 0.1}s` }}>
+  return Array.from({ length: 6 }).map((_, i) => (
+    <div key={i} className="skeleton-row">
       <div><div className="skeleton-bar skeleton-date" /></div>
       <div>
         <div className="skeleton-bar skeleton-title" />
@@ -238,40 +347,28 @@ export default function App() {
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchedCount, setFetchedCount] = useState(0);
+  const [errors, setErrors] = useState([]);
 
-  const totalFeeds = SOURCES.filter((s) => s.rss).length;
-
-  // Fetch RSS feeds
   const fetchFeeds = useCallback(async () => {
     setLoading(true);
     setFetchedCount(0);
+    setErrors([]);
     const allArticles = [];
+    const allErrors = [];
     let count = 0;
 
-    const feedSources = SOURCES.filter((s) => s.rss);
-
-    const promises = feedSources.map(async (source) => {
+    const promises = SOURCES.map(async (source) => {
       try {
-        const res = await fetch(
-          `${RSS2JSON}${encodeURIComponent(source.rss)}`
-        );
-        const data = await res.json();
-
-        if (data.status === "ok" && data.items) {
-          const items = data.items.slice(0, 10).map((item, idx) => ({
-            id: `${source.id}-${idx}-${Date.now()}`,
-            title: stripHtml(item.title),
-            source: source.id,
-            topic: "All",
-            date: item.pubDate ? item.pubDate.split(" ")[0] : new Date().toISOString().split("T")[0],
-            url: item.link || null,
-            summary: truncate(item.description || item.content, 220),
-            dataset: null,
-          }));
-          allArticles.push(...items);
+        let items;
+        if (source.type === "rss") {
+          items = await fetchRSS(source);
+        } else {
+          items = await fetchScrape(source);
         }
+        allArticles.push(...items);
       } catch (err) {
-        console.warn(`Failed to fetch ${source.name}:`, err.message);
+        console.warn(`Failed: ${source.name}`, err.message);
+        allErrors.push(`${source.name}: ${err.message}`);
       } finally {
         count++;
         setFetchedCount(count);
@@ -279,25 +376,21 @@ export default function App() {
     });
 
     await Promise.allSettled(promises);
-
-    // Sort by date descending
     allArticles.sort((a, b) => new Date(b.date) - new Date(a.date));
     setArticles(allArticles);
+    setErrors(allErrors);
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    fetchFeeds();
-  }, [fetchFeeds]);
+  useEffect(() => { fetchFeeds(); }, [fetchFeeds]);
 
   const filteredArticles = useMemo(() => {
     return articles.filter((a) => {
-      if (topic !== "All" && a.topic !== "All" && a.topic !== topic) return false;
       if (selectedSources.size > 0 && !selectedSources.has(a.source)) return false;
       if (search && !a.title.toLowerCase().includes(search.toLowerCase()) && !(a.summary || "").toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [articles, topic, selectedSources, search]);
+  }, [articles, selectedSources, search]);
 
   const toggleSource = (id) => {
     setSelectedSources((prev) => {
@@ -321,7 +414,7 @@ export default function App() {
           <div className="masthead-date">{today}</div>
           <h1>The Data <span className="accent">Journalism</span> Tracker</h1>
           <div className="masthead-sub">
-            A curated feed of data-driven stories, datasets &amp; methods — for students, journalists &amp; curious minds.
+            A curated feed of data-driven stories &amp; datasets — for students, journalists &amp; curious minds.
           </div>
         </header>
 
@@ -342,15 +435,7 @@ export default function App() {
         {/* ─── Articles ─── */}
         {tab === "articles" && (
           <>
-            <div className="filter-bar">
-              <span className="filter-label">Topic</span>
-              {TOPICS.map((t) => (
-                <button key={t} className={`filter-pill ${topic === t ? "active" : ""}`} onClick={() => setTopic(t)}>{t}</button>
-              ))}
-              <input className="search-input" type="text" placeholder="Search articles…" value={search} onChange={(e) => setSearch(e.target.value)} />
-            </div>
-
-            <div className="filter-bar" style={{ paddingTop: 12, paddingBottom: 12 }}>
+            <div className="filter-bar" style={{ paddingTop: 14, paddingBottom: 14 }}>
               <span className="filter-label">Source</span>
               <button
                 className={`filter-pill ${selectedSources.size === 0 ? "active" : ""}`}
@@ -365,23 +450,28 @@ export default function App() {
                   <span className="source-pill-emoji">{s.emoji}</span> {s.name}
                 </button>
               ))}
+              <input className="search-input" type="text" placeholder="Search articles…" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
 
             <div className="feed-status">
               <span className={`feed-dot ${loading ? "loading" : ""}`} />
               {loading
-                ? `Fetching feeds… ${fetchedCount}/${totalFeeds} sources loaded`
-                : `${articles.length} articles from ${totalFeeds} RSS feeds`
+                ? `Fetching sources… ${fetchedCount}/${SOURCES.length}`
+                : `${articles.length} articles from ${SOURCES.length} sources`
               }
               {!loading && (
                 <button className="filter-pill" onClick={fetchFeeds} style={{ marginLeft: 8, padding: "2px 10px", fontSize: 11 }}>↻ Refresh</button>
               )}
             </div>
 
-            {/* Loading skeleton */}
+            {errors.length > 0 && !loading && (
+              <div className="error-list">
+                {errors.map((e, i) => <div key={i} className="error-item">⚠ {e}</div>)}
+              </div>
+            )}
+
             {loading && <SkeletonLoader />}
 
-            {/* Article list */}
             {!loading && (
               <div className="article-list">
                 {filteredArticles.map((a, i) => {
@@ -396,25 +486,18 @@ export default function App() {
                           ) : a.title}
                         </h3>
                         <span className="source-tag">{src?.emoji} {src?.name}</span>
-                        {a.topic !== "All" && <span className="topic-tag">{a.topic}</span>}
                         {a.summary && <p>{a.summary}</p>}
                         {a.url && (
-                          <a className="read-link" href={a.url} target="_blank" rel="noreferrer">Read original article</a>
-                        )}
-                        {a.dataset && a.dataset.url && (
-                          <div className="article-dataset">
-                            <span className="ds-icon">📦</span>
-                            <a href={a.dataset.url} target="_blank" rel="noreferrer">{a.dataset.name || "Dataset"}</a>
-                          </div>
+                          <a className="read-link" href={a.url} target="_blank" rel="noreferrer">Read original</a>
                         )}
                       </div>
                     </div>
                   );
                 })}
-                {filteredArticles.length === 0 && !loading && (
+                {filteredArticles.length === 0 && (
                   <div className="empty-state">
                     <div className="empty-icon">🔍</div>
-                    <p>No articles match your filters.<br />Try adjusting your topic, source, or search query.</p>
+                    <p>No articles match your filters.<br />Try adjusting your source or search query.</p>
                   </div>
                 )}
               </div>
@@ -427,7 +510,7 @@ export default function App() {
           <div className="sources-section">
             <h2>Tracked Sources</h2>
             <p style={{ fontSize: 14, color: "#8c8578", fontWeight: 300, marginBottom: 20 }}>
-              {SOURCES.length} outlets tracked · {SOURCES.filter(s => s.rss).length} with live RSS feeds
+              {SOURCES.length} data journalism outlets tracked
             </p>
             <div className="sources-grid">
               {SOURCES.map((s, i) => (
@@ -436,18 +519,17 @@ export default function App() {
                   <div className="s-info">
                     <div className="s-name">{s.name}</div>
                     <div className="s-region">{s.region}</div>
-                    {s.rss ? <div className="s-rss">RSS active</div> : <div className="s-norss">Manual only</div>}
+                    <div className={`s-method ${s.type}`}>{s.type === "rss" ? "RSS feed" : "Page scraping"}</div>
                   </div>
-                  <span className={`s-status ${s.rss ? "" : "inactive"}`} title={s.rss ? "RSS feed active" : "No RSS feed"} />
+                  <span className="s-status" />
                 </a>
               ))}
             </div>
 
-            {/* Suggest a Source */}
             <div className="suggest-section">
               <h3 className="suggest-title">Suggest a Source</h3>
               <p className="suggest-desc">
-                Know a great data journalism outlet we're missing? Fill in the form below — it will open a GitHub Issue so we can review and discuss your suggestion.
+                Know a great data journalism outlet we're missing? Fill in the form below — it will open a GitHub Issue so we can review your suggestion.
               </p>
               <div className="suggest-form">
                 <div className="suggest-row">
@@ -465,7 +547,7 @@ export default function App() {
                     setSuggestForm({ name: "", url: "", reason: "" });
                   }}
                 >Submit via GitHub →</button>
-                <p className="suggest-note">Opens a pre-filled GitHub Issue in a new tab. You'll need a free GitHub account.</p>
+                <p className="suggest-note">Opens a pre-filled GitHub Issue in a new tab. Requires a GitHub account.</p>
               </div>
             </div>
           </div>
@@ -493,9 +575,9 @@ export default function App() {
 
               <h3 className="about-subheading">What You'll Find Here</h3>
               <p>
-                A live, auto-updating feed of data journalism pieces from {SOURCES.length} leading outlets across the US, UK,
-                Asia, and global networks — spanning topics from climate and health to criminal justice and technology.
-                Articles are fetched directly from RSS feeds so you always see the latest work.
+                A live feed of data journalism pieces from {SOURCES.length} leading outlets across the US, UK,
+                Asia, and global networks. Articles are fetched via RSS feeds where available, and via page scraping for outlets
+                that don't offer data-journalism-specific feeds.
               </p>
 
               <h3 className="about-subheading">Links &amp; Resources</h3>
@@ -517,13 +599,12 @@ export default function App() {
               <h3 className="about-subheading">Contribute</h3>
               <p>
                 Missing a great source? Head over to the <button className="inline-link" onClick={() => setTab("sources")}>Sources</button> tab
-                and use the <em>Suggest a Source</em> form to recommend outlets we should track. Community input makes this resource better for everyone.
+                and use the <em>Suggest a Source</em> form to recommend outlets we should track.
               </p>
             </div>
           </div>
         )}
 
-        {/* ─── Footer ─── */}
         <footer className="footer">
           <p>© 2026 Bin Chen · The Data Journalism Tracker</p>
         </footer>
