@@ -292,6 +292,16 @@ export default function App() {
         {/* ─── Articles ─── */}
         {tab === "articles" && (
           <>
+            {/* Browse directly */}
+            <div className="filter-bar" style={{ paddingTop: 14, paddingBottom: 14 }}>
+              <span className="filter-label">Browse</span>
+              {BROWSE_SOURCES.map((s) => (
+                <a key={s.id} href={s.url} target="_blank" rel="noreferrer" className="filter-pill source-pill" style={{ textDecoration: "none", color: "var(--warm-gray)" }}>
+                  <span className="source-pill-emoji">{s.emoji}</span> {s.name} ↗
+                </a>
+              ))}
+            </div>
+
             {/* Source filter */}
             <div className="filter-bar" style={{ paddingTop: 14, paddingBottom: 14 }}>
               <span className="filter-label">Feed</span>
@@ -347,24 +357,6 @@ export default function App() {
                 )}
               </div>
             )}
-
-            {/* Browse directly section */}
-            <div className="browse-section">
-              <div className="browse-section-title">Browse Directly</div>
-              <div className="browse-grid">
-                {BROWSE_SOURCES.map((s, i) => (
-                  <a key={s.id} href={s.url} target="_blank" rel="noreferrer" className={`browse-card fade-in stagger-${(i % 4) + 1}`}>
-                    <div className="browse-card-header">
-                      <span className="browse-card-emoji">{s.emoji}</span>
-                      <span className="browse-card-name">{s.name}</span>
-                      <span className="browse-card-region">{s.region}</span>
-                    </div>
-                    <p>{s.description}</p>
-                    <span className="browse-card-cta">Visit site</span>
-                  </a>
-                ))}
-              </div>
-            </div>
           </>
         )}
 
