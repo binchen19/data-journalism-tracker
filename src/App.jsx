@@ -2,8 +2,6 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 
 /*
  * ─── SOURCES ───
- * type: "rss"    → auto-fetched via rss2json API
- * type: "browse" → displayed as "browse directly" cards, no fetching
  */
 const SOURCES = [
   { id: "nyt", name: "NYT The Upshot", emoji: "📰", region: "US", url: "https://www.nytimes.com/section/upshot", type: "rss", feed: "https://rss.nytimes.com/services/xml/rss/nyt/Upshot.xml", description: "Data-driven analysis of politics, policy, and everyday life from The New York Times." },
@@ -46,164 +44,745 @@ async function fetchRSS(source) {
   }));
 }
 
-/* ─── Styles ─── */
+/* ─── Apple-Inspired Styles ─── */
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&family=SF+Pro+Text:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap');
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   :root {
-    --ink: #1a1a1a;
-    --paper: #faf8f4;
-    --cream: #f0ece4;
-    --warm-gray: #8c8578;
-    --accent: #c43d2e;
-    --accent-soft: #f5e6e4;
-    --rule: #d4cfc6;
-    --blue: #2563eb;
-    --blue-soft: #e8effd;
-    --green: #16803c;
-    --green-soft: #e6f4ec;
-    --tag-bg: #eae6de;
+    --bg: #f5f5f7;
+    --surface: #ffffff;
+    --surface-secondary: #fbfbfd;
+    --text-primary: #1d1d1f;
+    --text-secondary: #6e6e73;
+    --text-tertiary: #86868b;
+    --border: rgba(0, 0, 0, 0.06);
+    --border-strong: rgba(0, 0, 0, 0.1);
+    --accent: #0071e3;
+    --accent-hover: #0077ed;
+    --accent-soft: rgba(0, 113, 227, 0.08);
+    --red: #ff3b30;
+    --green: #34c759;
+    --orange: #ff9500;
+    --purple: #af52de;
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --radius-xl: 24px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+    --shadow-xl: 0 16px 48px rgba(0,0,0,0.1), 0 4px 16px rgba(0,0,0,0.05);
+    --blur: saturate(180%) blur(20px);
+    --font-display: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    --font-serif: 'Source Serif 4', Georgia, serif;
   }
 
-  body { font-family: 'IBM Plex Sans', sans-serif; background: var(--paper); color: var(--ink); line-height: 1.6; -webkit-font-smoothing: antialiased; }
-  .app { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text-primary);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-  .masthead { text-align: center; padding: 48px 0 24px; border-bottom: 3px double var(--ink); }
-  .masthead-date { font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--warm-gray); margin-bottom: 12px; }
-  .masthead h1 { font-family: 'DM Serif Display', serif; font-size: clamp(32px, 6vw, 56px); font-weight: 400; line-height: 1.1; letter-spacing: -0.5px; }
-  .masthead h1 .accent { color: var(--accent); }
-  .masthead-sub { font-size: 14px; color: var(--warm-gray); margin-top: 10px; font-weight: 300; letter-spacing: 0.3px; }
+  .app {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 0 20px;
+    min-height: 100vh;
+  }
 
-  .nav-bar { display: flex; gap: 0; border-bottom: 1px solid var(--rule); overflow-x: auto; scrollbar-width: none; }
-  .nav-bar::-webkit-scrollbar { display: none; }
-  .nav-tab { padding: 14px 20px; font-size: 13px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; color: var(--warm-gray); cursor: pointer; border: none; background: none; white-space: nowrap; position: relative; transition: color 0.2s; font-family: 'IBM Plex Sans', sans-serif; }
-  .nav-tab:hover { color: var(--ink); }
-  .nav-tab.active { color: var(--ink); }
-  .nav-tab.active::after { content: ''; position: absolute; bottom: -1px; left: 16px; right: 16px; height: 2px; background: var(--accent); }
+  /* ─── Hero / Masthead ─── */
+  .masthead {
+    text-align: center;
+    padding: 64px 0 40px;
+  }
+  .masthead-eyebrow {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+  .masthead h1 {
+    font-family: var(--font-display);
+    font-size: clamp(36px, 7vw, 56px);
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+  }
+  .masthead h1 .gradient-text {
+    background: linear-gradient(135deg, #0071e3, #6e3adb, #e3478c);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .masthead-sub {
+    font-size: 17px;
+    color: var(--text-secondary);
+    font-weight: 400;
+    max-width: 520px;
+    margin: 0 auto;
+    line-height: 1.5;
+  }
 
-  .filter-bar { display: flex; gap: 8px; padding: 16px 0; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--rule); }
-  .filter-label { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--warm-gray); margin-right: 4px; }
-  .filter-pill { padding: 5px 14px; border-radius: 100px; border: 1px solid var(--rule); background: transparent; font-size: 12.5px; font-family: 'IBM Plex Sans', sans-serif; color: var(--warm-gray); cursor: pointer; transition: all 0.2s; }
-  .filter-pill:hover { border-color: var(--ink); color: var(--ink); }
-  .filter-pill.active { background: var(--ink); border-color: var(--ink); color: var(--paper); }
-  .search-input { margin-left: auto; padding: 6px 14px; border: 1px solid var(--rule); border-radius: 100px; font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; background: transparent; color: var(--ink); width: 200px; transition: border-color 0.2s; outline: none; }
-  .search-input::placeholder { color: var(--warm-gray); opacity: 0.6; }
-  .search-input:focus { border-color: var(--ink); }
+  /* ─── Navigation ─── */
+  .nav-wrapper {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    padding: 8px 0;
+    margin-bottom: 8px;
+  }
+  .nav-bar {
+    display: flex;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    border-radius: 12px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    width: fit-content;
+    margin: 0 auto;
+  }
+  .nav-tab {
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border: none;
+    background: none;
+    border-radius: 8px;
+    white-space: nowrap;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    font-family: var(--font-body);
+    position: relative;
+  }
+  .nav-tab:hover {
+    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.03);
+  }
+  .nav-tab.active {
+    color: var(--text-primary);
+    background: var(--surface);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 0.5px 1px rgba(0,0,0,0.04);
+    font-weight: 600;
+  }
+  .count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 100px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 6px;
+  }
 
-  .source-pill { font-size: 11.5px; padding: 4px 10px; }
-  .source-pill-emoji { font-size: 12px; margin-right: 1px; }
+  /* ─── Search & Filters ─── */
+  .toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 0;
+  }
+  .search-row {
+    position: relative;
+  }
+  .search-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-tertiary);
+    font-size: 15px;
+    pointer-events: none;
+  }
+  .search-input {
+    width: 100%;
+    padding: 10px 16px 10px 38px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 15px;
+    background: var(--surface);
+    color: var(--text-primary);
+    outline: none;
+    transition: all 0.2s;
+    box-shadow: var(--shadow-sm);
+  }
+  .search-input::placeholder { color: var(--text-tertiary); }
+  .search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-sm);
+  }
 
-  /* ─── Browse cards ─── */
-  .browse-section { padding: 28px 0; border-bottom: 1px solid var(--rule); }
-  .browse-section-title { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--warm-gray); margin-bottom: 14px; }
-  .browse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
-  .browse-card { display: block; padding: 16px 18px; border: 1px solid var(--rule); border-radius: 6px; text-decoration: none; color: var(--ink); transition: all 0.25s; }
-  .browse-card:hover { border-color: var(--ink); background: var(--cream); transform: translateY(-1px); box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
-  .browse-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-  .browse-card-emoji { font-size: 18px; }
-  .browse-card-name { font-size: 14px; font-weight: 500; }
-  .browse-card-region { font-size: 10px; color: var(--warm-gray); text-transform: uppercase; letter-spacing: 1px; margin-left: auto; }
-  .browse-card p { font-size: 12.5px; color: #777; line-height: 1.5; font-weight: 300; }
-  .browse-card-cta { display: inline-block; margin-top: 8px; font-size: 11.5px; color: var(--blue); font-weight: 500; }
-  .browse-card-cta::after { content: ' ↗'; }
+  .filter-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filter-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-right: 4px;
+  }
+  .chip {
+    padding: 6px 14px;
+    border-radius: 100px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    font-size: 13px;
+    font-family: var(--font-body);
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .chip .chip-emoji { font-size: 13px; }
 
-  /* ─── Article list ─── */
-  .article-list { padding: 8px 0 40px; }
-  .article-item { display: grid; grid-template-columns: 80px 1fr; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--rule); align-items: start; }
-  @media (max-width: 640px) { .article-item { grid-template-columns: 1fr; gap: 4px; } .article-date { order: -1; } }
-  .article-date { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--warm-gray); padding-top: 3px; }
-  .article-main h3 { font-family: 'DM Serif Display', serif; font-size: 18px; font-weight: 400; line-height: 1.35; margin-bottom: 4px; }
-  .article-main h3 a { color: inherit; text-decoration: none; }
-  .article-main h3 a:hover { color: var(--accent); }
-  .source-tag { display: inline-block; font-size: 11px; font-weight: 500; color: var(--warm-gray); margin-right: 8px; }
-  .article-main p { font-size: 13.5px; color: #666; margin-top: 6px; line-height: 1.55; font-weight: 300; }
-  .read-link { display: inline-block; margin-top: 8px; font-size: 12.5px; color: var(--blue); text-decoration: none; font-weight: 500; }
-  .read-link:hover { text-decoration: underline; }
-  .read-link::after { content: ' ↗'; font-size: 0.9em; }
+  .feed-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0 12px;
+    font-size: 13px;
+    color: var(--text-tertiary);
+    font-weight: 400;
+  }
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    position: relative;
+  }
+  .status-dot::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: var(--green);
+    opacity: 0.2;
+    animation: statusPulse 2s ease-in-out infinite;
+  }
+  .status-dot.loading { background: var(--orange); }
+  .status-dot.loading::after { background: var(--orange); }
+  @keyframes statusPulse { 0%, 100% { transform: scale(1); opacity: 0.2; } 50% { transform: scale(1.5); opacity: 0; } }
 
-  /* ─── Sources tab ─── */
-  .sources-section { padding: 32px 0 48px; }
-  .sources-section h2 { font-family: 'DM Serif Display', serif; font-size: 24px; font-weight: 400; margin-bottom: 20px; }
-  .sources-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-  .source-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--rule); border-radius: 4px; transition: all 0.2s; cursor: pointer; text-decoration: none; color: var(--ink); }
-  .source-card:hover { border-color: var(--ink); background: var(--cream); }
-  .s-emoji { font-size: 20px; }
-  .s-info { flex: 1; }
-  .s-name { font-size: 14px; font-weight: 500; }
-  .s-region { font-size: 11px; color: var(--warm-gray); text-transform: uppercase; letter-spacing: 1px; }
-  .s-method { font-size: 10px; font-weight: 500; letter-spacing: 0.5px; }
-  .s-method.rss { color: var(--green); }
-  .s-method.browse { color: var(--blue); }
-  .s-status { width: 8px; height: 8px; border-radius: 50%; opacity: 0.7; }
-  .s-status.rss { background: var(--green); }
-  .s-status.browse { background: var(--blue); }
+  .refresh-btn {
+    padding: 4px 12px;
+    border-radius: 100px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    font-size: 12px;
+    font-family: var(--font-body);
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 4px;
+  }
+  .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-  .feed-status { display: flex; align-items: center; gap: 8px; padding: 16px 0 8px; font-size: 12px; color: var(--warm-gray); }
-  .feed-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
-  .feed-dot.loading { background: var(--accent); }
-  @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+  /* ─── Browse Grid ─── */
+  .browse-section {
+    padding-bottom: 16px;
+  }
+  .section-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 10px;
+  }
+  .browse-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+  }
+  .browse-card {
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-sm);
+  }
+  .browse-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: transparent;
+  }
+  .browse-card-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .browse-card-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .browse-card-name {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .browse-card-region {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    font-weight: 500;
+  }
+  .browse-card p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.45;
+    font-weight: 400;
+    flex: 1;
+  }
+  .browse-card-arrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+  }
 
-  .empty-state { text-align: center; padding: 60px 20px; color: var(--warm-gray); }
-  .empty-state .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  /* ─── Article Cards ─── */
+  .article-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 40px;
+  }
+  .article-card {
+    display: flex;
+    gap: 16px;
+    padding: 18px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-sm);
+    align-items: flex-start;
+  }
+  .article-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: transparent;
+  }
+  .article-date-col {
+    flex-shrink: 0;
+    width: 52px;
+    text-align: center;
+    padding-top: 2px;
+  }
+  .article-date-month {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1;
+  }
+  .article-date-day {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+  .article-content { flex: 1; min-width: 0; }
+  .article-content h3 {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.35;
+    margin-bottom: 5px;
+    letter-spacing: -0.01em;
+  }
+  .article-content h3 a {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .article-content h3 a:hover { color: var(--accent); }
+  .article-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .source-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+  .article-content p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    font-weight: 400;
+  }
+  .read-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+    transition: gap 0.2s;
+  }
+  .read-link:hover { gap: 6px; }
+  .read-link-arrow {
+    font-size: 12px;
+    transition: transform 0.2s;
+  }
+  .read-link:hover .read-link-arrow { transform: translateX(2px); }
 
-  .footer { border-top: 3px double var(--ink); padding: 24px 0; text-align: center; margin-top: 20px; }
-  .footer p { font-size: 12px; color: var(--warm-gray); line-height: 1.8; }
+  @media (max-width: 640px) {
+    .article-card { flex-direction: column; gap: 8px; }
+    .article-date-col { display: flex; gap: 6px; align-items: baseline; width: auto; text-align: left; }
+    .article-date-day { font-size: 16px; }
+  }
 
-  .count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; padding: 0 5px; border-radius: 100px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 600; margin-left: 6px; }
+  /* ─── Sources Tab ─── */
+  .sources-section { padding: 24px 0 48px; }
+  .sources-header {
+    margin-bottom: 24px;
+  }
+  .sources-header h2 {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  .sources-header p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    font-weight: 400;
+  }
+  .sources-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+  .source-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
+  }
+  .source-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: transparent;
+  }
+  .source-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .source-info { flex: 1; }
+  .source-name { font-size: 15px; font-weight: 600; }
+  .source-region { font-size: 12px; color: var(--text-tertiary); font-weight: 500; }
+  .source-type {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 3px 8px;
+    border-radius: 6px;
+  }
+  .source-type.rss { color: #1a7d37; background: rgba(52,199,89,0.12); }
+  .source-type.browse { color: #0060c7; background: rgba(0,113,227,0.08); }
 
-  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  .fade-in { animation: fadeUp 0.4s ease-out both; }
-  .stagger-1 { animation-delay: 0.05s; }
-  .stagger-2 { animation-delay: 0.1s; }
-  .stagger-3 { animation-delay: 0.15s; }
-  .stagger-4 { animation-delay: 0.2s; }
+  /* ─── Suggest Section ─── */
+  .suggest-section {
+    margin-top: 40px;
+    padding: 32px;
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+  }
+  .suggest-title {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+  .suggest-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    font-weight: 400;
+  }
+  .suggest-form { max-width: 560px; }
+  .suggest-row { display: flex; gap: 10px; margin-bottom: 10px; }
+  @media (max-width: 560px) { .suggest-row { flex-direction: column; } }
+  .suggest-input, .suggest-textarea {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 14px;
+    background: var(--surface-secondary);
+    color: var(--text-primary);
+    outline: none;
+    transition: all 0.2s;
+  }
+  .suggest-input:focus, .suggest-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+    background: var(--surface);
+  }
+  .suggest-input::placeholder, .suggest-textarea::placeholder { color: var(--text-tertiary); }
+  .suggest-textarea { resize: vertical; margin-bottom: 12px; min-height: 72px; }
+  .suggest-btn {
+    padding: 10px 24px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 100px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .suggest-btn:hover { background: var(--accent-hover); transform: scale(1.02); }
+  .suggest-btn:active { transform: scale(0.98); }
+  .suggest-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .suggest-note { font-size: 12px; color: var(--text-tertiary); margin-top: 10px; }
 
-  .skeleton-row { display: grid; grid-template-columns: 80px 1fr; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--rule); }
-  .skeleton-bar { background: linear-gradient(90deg, var(--cream) 25%, var(--rule) 50%, var(--cream) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
-  .skeleton-date { width: 60px; height: 14px; }
-  .skeleton-title { width: 80%; height: 20px; margin-bottom: 8px; }
+  /* ─── About ─── */
+  .about-section { padding: 32px 0 48px; max-width: 680px; }
+  .about-heading {
+    font-family: var(--font-display);
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 24px;
+  }
+  .about-content p {
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    font-weight: 400;
+  }
+  .about-content a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .about-content a:hover { text-decoration: underline; }
+  .about-subheading {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-top: 32px;
+    margin-bottom: 14px;
+    color: var(--text-primary);
+  }
+  .about-links {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .about-link-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    text-decoration: none !important;
+    color: var(--text-primary);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-sm);
+  }
+  .about-link-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: transparent;
+  }
+  .about-link-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .about-link-card div { display: flex; flex-direction: column; }
+  .about-link-card strong { font-size: 15px; font-weight: 600; }
+  .about-link-card span { font-size: 13px; color: var(--text-secondary); font-weight: 400; }
+  .inline-link {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-family: var(--font-body);
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: none;
+  }
+  .inline-link:hover { text-decoration: underline; }
+
+  /* ─── Skeleton ─── */
+  .skeleton-card {
+    display: flex;
+    gap: 16px;
+    padding: 18px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+  }
+  .skeleton-bar {
+    background: linear-gradient(90deg, var(--bg) 25%, rgba(0,0,0,0.04) 50%, var(--bg) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.8s ease-in-out infinite;
+    border-radius: 6px;
+  }
+  .skeleton-date-block { width: 52px; flex-shrink: 0; }
+  .skeleton-date-m { width: 32px; height: 10px; margin-bottom: 4px; }
+  .skeleton-date-d { width: 36px; height: 24px; }
+  .skeleton-body { flex: 1; }
+  .skeleton-title { width: 80%; height: 20px; margin-bottom: 10px; }
   .skeleton-text { width: 100%; height: 14px; margin-bottom: 6px; }
-  .skeleton-text.short { width: 60%; }
+  .skeleton-text.short { width: 55%; }
   @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-  .suggest-section { margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--rule); }
-  .suggest-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; margin-bottom: 6px; }
-  .suggest-desc { font-size: 13.5px; color: var(--warm-gray); font-weight: 300; margin-bottom: 16px; }
-  .suggest-form { max-width: 560px; }
-  .suggest-row { display: flex; gap: 12px; margin-bottom: 12px; }
-  @media (max-width: 560px) { .suggest-row { flex-direction: column; } }
-  .suggest-input, .suggest-textarea { width: 100%; padding: 10px 14px; border: 1px solid var(--rule); border-radius: 4px; font-family: 'IBM Plex Sans', sans-serif; font-size: 13.5px; background: transparent; color: var(--ink); outline: none; transition: border-color 0.2s; }
-  .suggest-input:focus, .suggest-textarea:focus { border-color: var(--ink); }
-  .suggest-input::placeholder, .suggest-textarea::placeholder { color: var(--warm-gray); opacity: 0.5; }
-  .suggest-textarea { resize: vertical; margin-bottom: 12px; min-height: 72px; }
-  .suggest-btn { padding: 9px 24px; background: var(--ink); color: var(--paper); border: none; border-radius: 4px; font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: opacity 0.2s; }
-  .suggest-btn:hover { opacity: 0.85; }
-  .suggest-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-  .suggest-note { font-size: 11.5px; color: var(--warm-gray); margin-top: 8px; font-weight: 300; }
+  /* ─── Empty State ─── */
+  .empty-state {
+    text-align: center;
+    padding: 64px 20px;
+    color: var(--text-tertiary);
+  }
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    filter: grayscale(0.3);
+  }
+  .empty-state p {
+    font-size: 15px;
+    line-height: 1.6;
+  }
 
-  .about-section { padding: 36px 0 48px; max-width: 680px; }
-  .about-heading { font-family: 'DM Serif Display', serif; font-size: 28px; font-weight: 400; margin-bottom: 24px; }
-  .about-content p { font-size: 15px; line-height: 1.75; color: #444; margin-bottom: 16px; font-weight: 300; }
-  .about-content a { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; font-weight: 400; }
-  .about-content a:hover { color: var(--accent); }
-  .about-subheading { font-family: 'DM Serif Display', serif; font-size: 19px; font-weight: 400; margin-top: 28px; margin-bottom: 12px; color: var(--ink); }
-  .about-links { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
-  .about-link-card { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border: 1px solid var(--rule); border-radius: 6px; text-decoration: none !important; color: var(--ink); transition: all 0.2s; }
-  .about-link-card:hover { border-color: var(--ink); background: var(--cream); }
-  .about-link-icon { font-size: 22px; flex-shrink: 0; }
-  .about-link-card div { display: flex; flex-direction: column; }
-  .about-link-card strong { font-size: 14px; font-weight: 600; }
-  .about-link-card span { font-size: 12.5px; color: var(--warm-gray); font-weight: 300; }
-  .inline-link { background: none; border: none; color: var(--ink); text-decoration: underline; text-underline-offset: 2px; font-family: 'IBM Plex Sans', sans-serif; font-size: 15px; font-weight: 400; cursor: pointer; padding: 0; }
-  .inline-link:hover { color: var(--accent); }
+  /* ─── Footer ─── */
+  .footer {
+    padding: 24px 0;
+    text-align: center;
+    margin-top: 20px;
+  }
+  .footer p {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-weight: 400;
+  }
+
+  /* ─── Animations ─── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-in { animation: fadeUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) both; }
+  .stagger-1 { animation-delay: 0.04s; }
+  .stagger-2 { animation-delay: 0.08s; }
+  .stagger-3 { animation-delay: 0.12s; }
+  .stagger-4 { animation-delay: 0.16s; }
+  .stagger-5 { animation-delay: 0.2s; }
 `;
 
-function formatDate(dateStr) {
+function formatDateParts(dateStr) {
   const d = new Date(dateStr);
-  if (isNaN(d)) return "";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (isNaN(d)) return { month: "", day: "" };
+  return {
+    month: d.toLocaleDateString("en-US", { month: "short" }),
+    day: d.getDate(),
+  };
 }
 
 function getSource(id) {
@@ -212,9 +791,12 @@ function getSource(id) {
 
 function SkeletonLoader() {
   return Array.from({ length: 5 }).map((_, i) => (
-    <div key={i} className="skeleton-row">
-      <div><div className="skeleton-bar skeleton-date" /></div>
-      <div>
+    <div key={i} className={`skeleton-card fade-in stagger-${(i % 5) + 1}`}>
+      <div className="skeleton-date-block">
+        <div className="skeleton-bar skeleton-date-m" />
+        <div className="skeleton-bar skeleton-date-d" />
+      </div>
+      <div className="skeleton-body">
         <div className="skeleton-bar skeleton-title" />
         <div className="skeleton-bar skeleton-text" />
         <div className="skeleton-bar skeleton-text short" />
@@ -234,7 +816,6 @@ export default function App() {
   const fetchFeeds = useCallback(async () => {
     setLoading(true);
     const allArticles = [];
-
     const promises = RSS_SOURCES.map(async (source) => {
       try {
         const items = await fetchRSS(source);
@@ -243,7 +824,6 @@ export default function App() {
         console.warn(`Failed: ${source.name}`, err.message);
       }
     });
-
     await Promise.allSettled(promises);
     allArticles.sort((a, b) => new Date(b.date) - new Date(a.date));
     setArticles(allArticles);
@@ -268,82 +848,110 @@ export default function App() {
     <>
       <style>{css}</style>
       <div className="app">
+        {/* ─── Masthead ─── */}
         <header className="masthead">
-          <div className="masthead-date">{today}</div>
-          <h1>The <span className="accent">Data</span> Journalism Tracker</h1>
+          <div className="masthead-eyebrow">{today}</div>
+          <h1>The <span className="gradient-text">Data</span> Journalism Tracker</h1>
           <div className="masthead-sub">
-            A curated feed of data-driven stories &amp; datasets — for students, journalists &amp; curious minds.
+            A curated feed of data-driven stories & datasets — for students, journalists & curious minds.
           </div>
         </header>
 
-        <nav className="nav-bar">
-          {[
-            { key: "articles", label: "Articles" },
-            { key: "sources", label: "Sources" },
-            { key: "about", label: "About" },
-          ].map((t) => (
-            <button key={t.key} className={`nav-tab ${tab === t.key ? "active" : ""}`} onClick={() => setTab(t.key)}>
-              {t.label}
-              {t.key === "articles" && !loading && <span className="count-badge">{filteredArticles.length}</span>}
-            </button>
-          ))}
-        </nav>
+        {/* ─── Navigation ─── */}
+        <div className="nav-wrapper">
+          <nav className="nav-bar">
+            {[
+              { key: "articles", label: "Articles" },
+              { key: "sources", label: "Sources" },
+              { key: "about", label: "About" },
+            ].map((t) => (
+              <button key={t.key} className={`nav-tab ${tab === t.key ? "active" : ""}`} onClick={() => setTab(t.key)}>
+                {t.label}
+                {t.key === "articles" && !loading && <span className="count-badge">{filteredArticles.length}</span>}
+              </button>
+            ))}
+          </nav>
+        </div>
 
-        {/* ─── Articles ─── */}
+        {/* ─── Articles Tab ─── */}
         {tab === "articles" && (
           <>
-            {/* Browse directly */}
-            <div className="filter-bar" style={{ paddingTop: 14, paddingBottom: 14 }}>
-              <span className="filter-label">Browse</span>
-              {BROWSE_SOURCES.map((s) => (
-                <a key={s.id} href={s.url} target="_blank" rel="noreferrer" className="filter-pill source-pill" style={{ textDecoration: "none", color: "var(--warm-gray)" }}>
-                  <span className="source-pill-emoji">{s.emoji}</span> {s.name} ↗
-                </a>
-              ))}
-            </div>
+            <div className="toolbar">
+              {/* Search */}
+              <div className="search-row">
+                <span className="search-icon">⌕</span>
+                <input
+                  className="search-input"
+                  type="text"
+                  placeholder="Search articles…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
 
-            {/* Source filter */}
-            <div className="filter-bar" style={{ paddingTop: 14, paddingBottom: 14 }}>
-              <span className="filter-label">Feed</span>
-              <button className={`filter-pill ${selectedSource === "all" ? "active" : ""}`} onClick={() => setSelectedSource("all")}>All</button>
-              {RSS_SOURCES.map((s) => (
-                <button key={s.id} className={`filter-pill source-pill ${selectedSource === s.id ? "active" : ""}`} onClick={() => setSelectedSource(s.id)}>
-                  <span className="source-pill-emoji">{s.emoji}</span> {s.name}
-                </button>
-              ))}
-              <input className="search-input" type="text" placeholder="Search articles…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              {/* Source filters */}
+              <div className="filter-row">
+                <span className="filter-label">Feed</span>
+                <button className={`chip ${selectedSource === "all" ? "active" : ""}`} onClick={() => setSelectedSource("all")}>All</button>
+                {RSS_SOURCES.map((s) => (
+                  <button key={s.id} className={`chip ${selectedSource === s.id ? "active" : ""}`} onClick={() => setSelectedSource(s.id)}>
+                    <span className="chip-emoji">{s.emoji}</span> {s.name}
+                  </button>
+                ))}
+              </div>
+
+              {/* Browse directly */}
+              <div className="filter-row">
+                <span className="filter-label">Browse</span>
+                {BROWSE_SOURCES.map((s) => (
+                  <a key={s.id} href={s.url} target="_blank" rel="noreferrer" className="chip">
+                    <span className="chip-emoji">{s.emoji}</span> {s.name} ↗
+                  </a>
+                ))}
+              </div>
             </div>
 
             <div className="feed-status">
-              <span className={`feed-dot ${loading ? "loading" : ""}`} />
+              <span className={`status-dot ${loading ? "loading" : ""}`} />
               {loading
                 ? "Fetching RSS feeds…"
-                : `${articles.length} articles from ${RSS_SOURCES.length} RSS feeds`
-              }
+                : `${articles.length} articles from ${RSS_SOURCES.length} RSS feeds`}
               {!loading && (
-                <button className="filter-pill" onClick={fetchFeeds} style={{ marginLeft: 8, padding: "2px 10px", fontSize: 11 }}>↻ Refresh</button>
+                <button className="refresh-btn" onClick={fetchFeeds}>↻ Refresh</button>
               )}
             </div>
 
-            {loading && <SkeletonLoader />}
+            {loading && (
+              <div className="article-list">
+                <SkeletonLoader />
+              </div>
+            )}
 
             {!loading && (
               <div className="article-list">
                 {filteredArticles.map((a, i) => {
                   const src = getSource(a.source);
+                  const { month, day } = formatDateParts(a.date);
                   return (
-                    <div key={a.id} className={`article-item fade-in stagger-${(i % 4) + 1}`}>
-                      <div className="article-date">{formatDate(a.date)}</div>
-                      <div className="article-main">
+                    <div key={a.id} className={`article-card fade-in stagger-${(i % 5) + 1}`}>
+                      <div className="article-date-col">
+                        <div className="article-date-month">{month}</div>
+                        <div className="article-date-day">{day}</div>
+                      </div>
+                      <div className="article-content">
+                        <div className="article-meta">
+                          <span className="source-badge">{src?.emoji} {src?.name}</span>
+                        </div>
                         <h3>
                           {a.url ? (
                             <a href={a.url} target="_blank" rel="noreferrer">{a.title}</a>
                           ) : a.title}
                         </h3>
-                        <span className="source-tag">{src?.emoji} {src?.name}</span>
                         {a.summary && <p>{a.summary}</p>}
                         {a.url && (
-                          <a className="read-link" href={a.url} target="_blank" rel="noreferrer">Read original</a>
+                          <a className="read-link" href={a.url} target="_blank" rel="noreferrer">
+                            Read article <span className="read-link-arrow">→</span>
+                          </a>
                         )}
                       </div>
                     </div>
@@ -360,23 +968,22 @@ export default function App() {
           </>
         )}
 
-        {/* ─── Sources ─── */}
+        {/* ─── Sources Tab ─── */}
         {tab === "sources" && (
-          <div className="sources-section">
-            <h2>Tracked Sources</h2>
-            <p style={{ fontSize: 14, color: "#8c8578", fontWeight: 300, marginBottom: 20 }}>
-              {SOURCES.length} data journalism outlets — {RSS_SOURCES.length} via RSS, {BROWSE_SOURCES.length} browse directly
-            </p>
+          <div className="sources-section fade-in">
+            <div className="sources-header">
+              <h2>Tracked Sources</h2>
+              <p>{SOURCES.length} data journalism outlets — {RSS_SOURCES.length} via RSS, {BROWSE_SOURCES.length} browse directly</p>
+            </div>
             <div className="sources-grid">
               {SOURCES.map((s, i) => (
-                <a key={s.id} href={s.url} target="_blank" rel="noreferrer" className={`source-card fade-in stagger-${(i % 4) + 1}`}>
-                  <span className="s-emoji">{s.emoji}</span>
-                  <div className="s-info">
-                    <div className="s-name">{s.name}</div>
-                    <div className="s-region">{s.region}</div>
-                    <div className={`s-method ${s.type}`}>{s.type === "rss" ? "RSS feed" : "Browse directly"}</div>
+                <a key={s.id} href={s.url} target="_blank" rel="noreferrer" className={`source-card fade-in stagger-${(i % 5) + 1}`}>
+                  <div className="source-icon">{s.emoji}</div>
+                  <div className="source-info">
+                    <div className="source-name">{s.name}</div>
+                    <div className="source-region">{s.region}</div>
                   </div>
-                  <span className={`s-status ${s.type}`} />
+                  <span className={`source-type ${s.type}`}>{s.type === "rss" ? "RSS" : "Browse"}</span>
                 </a>
               ))}
             </div>
@@ -384,12 +991,12 @@ export default function App() {
             <div className="suggest-section">
               <h3 className="suggest-title">Suggest a Source</h3>
               <p className="suggest-desc">
-                Know a great data journalism outlet we're missing? Fill in the form below — it will open a GitHub Issue so we can review your suggestion.
+                Know a great data journalism outlet we're missing? Submit your suggestion via GitHub.
               </p>
               <div className="suggest-form">
                 <div className="suggest-row">
-                  <input className="suggest-input" type="text" placeholder="Source name (e.g., The Pudding)" value={suggestForm.name} onChange={(e) => setSuggestForm({ ...suggestForm, name: e.target.value })} />
-                  <input className="suggest-input" type="url" placeholder="URL (e.g., https://pudding.cool)" value={suggestForm.url} onChange={(e) => setSuggestForm({ ...suggestForm, url: e.target.value })} />
+                  <input className="suggest-input" type="text" placeholder="Source name" value={suggestForm.name} onChange={(e) => setSuggestForm({ ...suggestForm, name: e.target.value })} />
+                  <input className="suggest-input" type="url" placeholder="URL" value={suggestForm.url} onChange={(e) => setSuggestForm({ ...suggestForm, url: e.target.value })} />
                 </div>
                 <textarea className="suggest-textarea" placeholder="Why should we add this source? (optional)" value={suggestForm.reason} onChange={(e) => setSuggestForm({ ...suggestForm, reason: e.target.value })} rows={3} />
                 <button
@@ -402,13 +1009,13 @@ export default function App() {
                     setSuggestForm({ name: "", url: "", reason: "" });
                   }}
                 >Submit via GitHub →</button>
-                <p className="suggest-note">Opens a pre-filled GitHub Issue in a new tab. Requires a GitHub account.</p>
+                <p className="suggest-note">Opens a pre-filled GitHub Issue in a new tab.</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* ─── About ─── */}
+        {/* ─── About Tab ─── */}
         {tab === "about" && (
           <div className="about-section fade-in">
             <h2 className="about-heading">About This Project</h2>
@@ -418,35 +1025,34 @@ export default function App() {
                 a companion resource for the course and textbook <a href="https://binchen19.github.io/djr/" target="_blank" rel="noreferrer"><em>Data Journalism with R</em></a>.
               </p>
               <p>
-                It was originally designed to help <strong>students</strong> stay on top of the best data-driven reporting from
+                It was originally designed to help students stay on top of the best data-driven reporting from
                 world-class newsrooms — giving them real-world examples, methodological inspiration, and open datasets
                 to draw on for their final projects and beyond.
               </p>
               <p>
-                But this tracker isn't just for the classroom. It's equally useful for <strong>professional journalists</strong> looking
-                for inspiration and technique references, and for <strong>anyone curious about data storytelling</strong> — researchers,
-                civic technologists, self-taught learners, or anyone who believes the best journalism shows its work.
+                But this tracker isn't just for the classroom. It's equally useful for professional journalists looking
+                for inspiration and technique references, and for anyone curious about data storytelling.
               </p>
 
               <h3 className="about-subheading">What You'll Find Here</h3>
               <p>
                 Articles from {RSS_SOURCES.length} sources are fetched live via RSS feeds. Another {BROWSE_SOURCES.length} leading
                 outlets are featured as "browse directly" links — these don't offer data-journalism-specific RSS feeds,
-                so we link you straight to their data sections instead of pulling in irrelevant general news.
+                so we link you straight to their data sections.
               </p>
 
-              <h3 className="about-subheading">Links &amp; Resources</h3>
+              <h3 className="about-subheading">Links & Resources</h3>
               <div className="about-links">
                 <a href="https://binchen19.github.io/djr/" target="_blank" rel="noreferrer" className="about-link-card">
-                  <span className="about-link-icon">📖</span>
+                  <div className="about-link-icon">📖</div>
                   <div><strong>Data Journalism with R</strong><span>Free online textbook</span></div>
                 </a>
                 <a href="https://github.com/binchen19/djr/" target="_blank" rel="noreferrer" className="about-link-card">
-                  <span className="about-link-icon">💻</span>
+                  <div className="about-link-icon">💻</div>
                   <div><strong>GitHub Repository</strong><span>Source code for the textbook</span></div>
                 </a>
                 <a href="https://binchen19.github.io/" target="_blank" rel="noreferrer" className="about-link-card">
-                  <span className="about-link-icon">🌐</span>
+                  <div className="about-link-icon">🌐</div>
                   <div><strong>Bin Chen</strong><span>Personal website</span></div>
                 </a>
               </div>
